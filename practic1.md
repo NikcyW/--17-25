@@ -167,6 +167,98 @@ find "$dir" -type f -exec md5sum {} + | \
     }'
 ```
 
+3) chmod +x find_duplicates
+4)
+```echo "Привет, МИРЭА" > file1.txt
+echo "Привет, МИРЭА" > file2.txt
+echo "Другой текст" > file3.txt
+```
+5) ./find_duplicates
+<img width="555" height="99" alt="image" src="https://github.com/user-attachments/assets/db62200c-882e-4ab8-8a4b-bbc1c1b253df" />
+
+# задание 8
+1) nano pack_tar
+2) 
+```#!/usr/bin/env bash
+
+# Запоминаем папку и расширение из аргументов
+dir="$1"
+ext="$2"
+
+# Проверяем, ввел ли пользователь оба параметра?
+if [[ -z "$dir" || -z "$ext" ]]; then
+    echo "Использование: $0 <директория> <расширение>"
+    exit 1
+fi
+
+# Проверяем, существует ли указанная папка?
+if [[ ! -d "$dir" ]]; then
+    echo "Ошибка: Директория $dir не существует."
+    exit 1
+fi
+
+# Ищем файлы и передаем их пачкой в архиватор tar
+find "$dir" -maxdepth 1 -type f -name "*.${ext}" -print0 | xargs -0 tar -cvf "archive_${ext}.tar"
+
+echo "Архивация завершена! Файл archive_${ext}.tar успешно создан."
+```
+3) chmod +x pack_tar
+<img width="550" height="183" alt="image" src="https://github.com/user-attachments/assets/327c4518-cf83-4bf2-af48-88c7e6dd4578" />
+
+# задача 9
+1) nano space_to_tab
+2)
+```#!/usr/bin/env bash
+
+# Запоминаем имена входного и выходного файлов из аргументов
+input_file="$1"
+output_file="$2"
+
+# Проверяем: ввел ли пользователь оба имени файла?
+if [[ -z "$input_file" || -z "$output_file" ]]; then
+    echo "Использование: $0 <входной_файл> <выходной_файл>"
+    exit 1
+fi
+
+# Проверяем: существует ли вообще входной файл на диске?
+if [[ ! -f "$input_file" ]]; then
+    echo "Ошибка: Входной файл $input_file не найден."
+    exit 1
+fi
+
+# Заменяем 4 пробела на символ табуляции (\t) с помощью sed
+sed 's/    /\t/g' "$input_file" > "$output_file"
+
+echo "Замена завершена! Результат сохранен в файл: $output_file"
+```
+3) cmod +x spaces_to_tab
+<img width="794" height="101" alt="image" src="https://github.com/user-attachments/assets/f2fe8bc3-09bf-44fd-8832-8f4507701b8f" />
+
+# задание 10
+1) nano find_empty
+2)
+```#!/usr/bin/env bash
+
+# Берем папку для поиска из аргумента. Если ничего не ввели, ищем в текущей папке (.)
+dir="${1:-.}"
+
+# Проверяем, существует ли указанная папка?
+if [[ ! -d "$dir" ]]; then
+    echo "Ошибка: Директория $dir не существует."
+    exit 1
+fi
+
+# Ищем пустые файлы с помощью утилиты find
+find "$dir" -type f -empty
+```
+3) chmod +x find_empty
+<img width="618" height="224" alt="image" src="https://github.com/user-attachments/assets/296407ea-65c8-4865-8c82-c2666126635e" />
+
+
+
+
+
+
 
 
 
