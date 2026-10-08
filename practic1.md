@@ -1,9 +1,9 @@
 # задание 1  
-grep -o '^[a-z_][a-z0-9_-]*' /etc/passwd | sort
+```grep -o '^[a-z_][a-z0-9_-]*' /etc/passwd | sort```
 <img width="998" height="561" alt="image" src="https://github.com/user-attachments/assets/e38f40b5-332e-4ff3-8388-21097b22d7c1" />
 
 # задание 2  
-grep -v '^#' /etc/protocols | awk '{print $2, $1}' | sort -nr | head -n 5
+```grep -v '^#' /etc/protocols | awk '{print $2, $1}' | sort -nr | head -n 5```
 <img width="1221" height="218" alt="image" src="https://github.com/user-attachments/assets/8170c4c3-c6ca-4aa4-b413-4f4f1a8f511b" />
 
 # задание 3  
@@ -11,20 +11,20 @@ grep -v '^#' /etc/protocols | awk '{print $2, $1}' | sort -nr | head -n 5
 nano banner
 
 2.
-#!/usr/bin/env bash
+```#!/usr/bin/env bash```
 
 # Берем текст из аргументов командной строки
-text="${1:-Hello from RTU MIREA!}"
+```text="${1:-Hello from RTU MIREA!}"
 len=${#text}
-
+```
 # Рассчитываем длину и делаем рамку
-line=$(printf '%*s' "$((len + 2))" '' | tr ' ' '-')
+```line=$(printf '%*s' "$((len + 2))" '' | tr ' ' '-')```
 
 # Рисуем баннер на экране
-echo "+${line}+"
+```echo "+${line}+"
 echo "| ${text} |"
 echo "+${line}+"
-
+```
 3.
 chmod +x banner
 
@@ -36,16 +36,16 @@ chmod +x banner
 # задание 4
 1) nano id_finder
 2)
-#!/usr/bin/env bash
+```#!/usr/bin/env bash```
 
 # Проверяем: передал ли пользователь файл для анализа?
-if [[ -z "$1" ]]; then
+```if [[ -z "$1" ]]; then
     echo "Использование: $0 <имя_файла>"
     exit 1
 fi
-
+```
 # Ищем идентификаторы, сортируем их и убираем дубликаты
-grep -oE '[a-zA-Z_][a-zA-Z0-9_]*' "$1" | sort -u
+```grep -oE '[a-zA-Z_][a-zA-Z0-9_]*' "$1" | sort -u```
 
 3) chmod +x id_finder
 4) ./id_finder id_finder
@@ -55,22 +55,22 @@ grep -oE '[a-zA-Z_][a-zA-Z0-9_]*' "$1" | sort -u
 # задание 5
 1) nano reg
 2)
-#!/usr/bin/env bash
+```#!/usr/bin/env bash```
 
 # Проверка на дурака (ввели ли имя файла)
-if [[ -z "$1" ]]; then
+```if [[ -z "$1" ]]; then
     echo "Использование: $0 <имя_файла>"
     exit 1
 fi
-
+```
 # 755 — даем права на запуск всем пользователям
-chmod 755 "$1"
+```chmod 755 "$1"```
 
 # Копируем в глобальную папку от имени администратора
-sudo cp "$1" /usr/local/bin/
+```sudo cp "$1" /usr/local/bin/
 
 echo "Программа $1 успешно зарегистрирована!"
-
+```
 3) chmod +x reg  
 4) ./reg banner (можно зарегистрировать что угодно)  
 <img width="652" height="98" alt="image" src="https://github.com/user-attachments/assets/9170e43f-32da-4c56-afb8-9b15cd69e720" />
