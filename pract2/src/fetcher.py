@@ -1,25 +1,43 @@
 """Модуль получения данных о зависимостях пакетов NuGet."""
 
+import gzip
 import json
 import os
 import urllib.error
 import urllib.request
 
 
+def _fetch_json(url: str) -> dict:
+    """Загружает и распаковывает JSON с gzip-сжатием.
+
+    Args:
+        url: URL для запроса.
+
+    Returns:
+        dict: Распарсенный JSON.
+
+    Raises:
+        urllib.error.URLError: При ошибке сети.
+    """
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=10) as response:
+        content = response.read()
+        if content[:2] == b'\x1f\x8b':
+            content = gzip.decompress(content)
+        return json.loads(content.decode("utf-8"))
+
+
 def fetch_latest_version(package_name: str) -> str:
     """Получает последнюю стабильную версию пакета из NuGet API."""
     lower_pkg = package_name.lower()
-    url = f"https://nuget.org{lower_pkg}/index.json"
+    base_url = "https://api.nuget.org/v3/registration5-gz-semver2"
+    url = f"{base_url}/{lower_pkg}/index.json"
     try:
-        req = urllib.request.Request(
-            url, headers={"User-Agent": "Mozilla/5.0"}
-        )
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode("utf-8"))
-            if "items" in data and data["items"]:
-                last_page = data["items"][-1]
-                if "items" in last_page and last_page["items"]:
-                    return last_page["items"][-1]["catalogEntry"]["version"]
+        data = _fetch_json(url)
+        if "items" in data and data["items"]:
+            last_page = data["items"][-1]
+            if "items" in last_page and last_page["items"]:
+                return last_page["items"][-1]["catalogEntry"]["version"]
     except Exception:
         pass
     return ""
@@ -44,19 +62,16 @@ def fetch_nuget_dependencies(package_name: str, version: str) -> list:
             return []
 
     lower_pkg = package_name.lower()
-    url = f"https://nuget.org{lower_pkg}/index.json"
+    base_url = "https://api.nuget.org/v3/registration5-gz-semver2"
+    url = f"{base_url}/{lower_pkg}/index.json"
 
     try:
-        req = urllib.request.Request(
-            url, headers={"User-Agent": "Mozilla/5.0"}
-        )
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode("utf-8"))
+        data = _fetch_json(url)
     except urllib.error.URLError:
         return []
 
     dependencies = set()
-    
+
     if "items" in data:
         for page in data["items"]:
             if "items" in page:
@@ -69,18 +84,17 @@ def fetch_nuget_dependencies(package_name: str, version: str) -> list:
                                     for dep in group["dependencies"]:
                                         if "id" in dep:
                                             dependencies.add(dep["id"])
-                                            
+
     if not dependencies:
-        direct_url = f"https://nuget.org{lower_pkg}/{version}.json"
+        direct_url = f"{base_url}/{lower_pkg}/{version}.json"
         try:
-            with urllib.request.urlopen(urllib.request.Request(direct_url, headers={"User-Agent": "Mozilla/5.0"}), timeout=10) as resp:
-                direct_data = json.loads(resp.read().decode("utf-8"))
-                if "dependencyGroups" in direct_data:
-                    for group in direct_data["dependencyGroups"]:
-                        if "dependencies" in group:
-                            for dep in group["dependencies"]:
-                                if "id" in dep:
-                                    dependencies.add(dep["id"])
+            direct_data = _fetch_json(direct_url)
+            if "dependencyGroups" in direct_data:
+                for group in direct_data["dependencyGroups"]:
+                    if "dependencies" in group:
+                        for dep in group["dependencies"]:
+                            if "id" in dep:
+                                dependencies.add(dep["id"])
         except Exception:
             pass
 

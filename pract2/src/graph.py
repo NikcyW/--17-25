@@ -1,54 +1,156 @@
-import os
+"""Модуль построения и визуализации графа зависимостей."""
 
-def get_load_order(dependencies):
+import subprocess
+from src.fetcher import (
+    fetch_nuget_dependencies,
+    load_test_repository,
+)
+
+
+def build_dependency_graph(
+    root_package: str,
+    version: str,
+    mode: str,
+    repo_source: str
+) -> dict:
+    """Строит граф зависимостей DFS без рекурсии с обнаружением циклов.
+
+    Args:
+        root_package: Имя корневого пакета.
+        version: Версия пакета.
+        mode: Режим работы ('real' или 'test').
+        repo_source: URL репозитория или путь к тестовому файлу.
+
+    Returns:
+        dict: Граф в формате {package: [dependencies]}.
     """
-    Возвращает порядок загрузки пакетов (топологическая сортировка).
+    graph = {}
+    stack = [(root_package, version)]
+    visited = set()
+
+    while stack:
+        current_pkg, current_ver = stack.pop()
+
+        if current_pkg in visited:
+            continue
+
+        visited.add(current_pkg)
+
+        if mode == "test":
+            deps = load_test_repository(repo_source, current_pkg)
+        else:
+            deps = fetch_nuget_dependencies(current_pkg, current_ver)
+
+        graph[current_pkg] = deps
+
+        for dep in deps:
+            if dep not in visited:
+                stack.append((dep, ""))
+
+    return graph
+
+
+def get_load_order(graph: dict, root_package: str) -> list:
+    """Возвращает порядок загрузки пакетов (топологическая сортировка).
+
+    Использует DFS без рекурсии с явным стеком состояний.
+
+    Args:
+        graph: Граф зависимостей.
+        root_package: Корневой пакет.
+
+    Returns:
+        list: Порядок загрузки от зависимостей к корню.
     """
     visited = set()
     order = []
 
-    def dfs(node):
-        if node in visited:
-            return
-        visited.add(node)
-        for neighbor in dependencies.get(node, []):
-            dfs(neighbor)
-        order.append(node)
+    # Состояния: 'visiting' - в процессе обработки, 'visited' - завершён
+    state = {}
 
-    for pkg in dependencies:
-        dfs(pkg)
-    
-    return order[::-1]
+    for start_node in graph:
+        if start_node in visited:
+            continue
+
+        # Стек содержит кортежи (узел, итератор_соседей, фаза)
+        # Фаза: 'pre' - до обхода детей, 'post' - после обхода детей
+        stack = [(start_node, iter(graph.get(start_node, [])), 'pre')]
+
+        while stack:
+            node, neighbors, phase = stack.pop()
+
+            if phase == 'pre':
+                if node in visited:
+                    continue
+
+                # Проверка цикла
+                if state.get(node) == 'visiting':
+                    continue
+
+                state[node] = 'visiting'
+
+                # Добавляем post-обработку этого узла
+                stack.append((node, neighbors, 'post'))
+
+                # Добавляем соседей для обработки
+                for neighbor in neighbors:
+                    if neighbor not in visited:
+                        stack.append(
+                            (neighbor, iter(graph.get(neighbor, [])), 'pre')
+                        )
+
+            elif phase == 'post':
+                if node not in visited:
+                    visited.add(node)
+                    state[node] = 'visited'
+                    order.append(node)
+
+    return order
 
 
-def build_dependency_graph(dependencies, output_path):
+def generate_dot(graph: dict) -> str:
+    """Генерирует представление графа в формате Graphviz DOT.
+
+    Args:
+        graph: Граф зависимостей.
+
+    Returns:
+        str: Содержимое DOT-файла.
     """
-    Строит граф зависимостей и сохраняет его в формате SVG.
-    """
-    svg_content = """<svg xmlns="http://w3.org" width="500" height="350" style="background:#f4f6f9;">
-  <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7F8C8D"/>
-    </marker>
-  </defs>
-  <text x="250" y="35" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#2C3E50">Граф зависимостей пакетов (.NET)</text>
-"""
+    lines = ["digraph dependencies {", "  rankdir=LR;", "  node [shape=box];"]
 
-    y_pos = 100
-    for pkg, deps in dependencies.items():
-        svg_content += f"""  <circle cx="150" cy="{y_pos}" r="25" fill="#34495E"/>
-  <text x="150" y="{y_pos + 4}" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="white">{pkg}</text>
-"""
+    for pkg, deps in graph.items():
         for dep in deps:
-            svg_content += f"""  <circle cx="380" cy="{y_pos}" r="22" fill="#2980B9"/>
-  <text x="380" y="{y_pos + 4}" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="white">{dep}</text>
-  <line x1="175" y1="{y_pos}" x2="358" y2="{y_pos}" stroke="#7F8C8D" stroke-width="2" marker-end="url(#arrow)"/>
-"""
-            y_pos += 80
+            lines.append(f'  "{pkg}" -> "{dep}";')
 
-    svg_content += "</svg>"
+    lines.append("}")
+    return "\n".join(lines)
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(svg_content)
+
+def save_graph_image(dot_content: str, output_path: str) -> None:
+    """Сохраняет граф в файл PNG через Graphviz.
+
+    Args:
+        dot_content: Содержимое DOT-файла.
+        output_path: Путь к выходному PNG-файлу.
+    """
+    dot_file = output_path.rsplit(".", 1)[0] + ".dot"
+
+    try:
+        with open(dot_file, "w", encoding="utf-8") as f:
+            f.write(dot_content)
+        print(f"DOT-файл сохранён: {dot_file}")
+
+        subprocess.run(
+            ["dot", "-Tpng", dot_file, "-o", output_path],
+            check=True,
+            capture_output=True
+        )
+        print(f"PNG-изображение сохранено: {output_path}")
+    except FileNotFoundError:
+        print("Graphviz не установлен, PNG не создан.")
+    except subprocess.CalledProcessError as e:
+        print(f"Ошибка Graphviz: {e.stderr.decode('utf-8')}")
+    except IOError as e:
+        print(f"Ошибка записи: {e}")
 
