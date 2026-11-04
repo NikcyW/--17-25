@@ -9,8 +9,8 @@ from src.config import load_config, ConfigError
 class TestConfig(unittest.TestCase):
     """Тесты для проверки загрузки и валидации config.json."""
 
-    def setUp(self):
-        """Создание временного валидного файла конфигурации."""
+    def _create_config(self):
+        """Создаёт временный валидный файл и регистрирует его удаление."""
         self.test_file = "test_temp_config.json"
         self.valid_data = {
             "package_name": "A",
@@ -21,14 +21,16 @@ class TestConfig(unittest.TestCase):
         }
         with open(self.test_file, "w", encoding="utf-8") as f:
             json.dump(self.valid_data, f)
+        self.addCleanup(self._remove_config)
 
-    def tearDown(self):
-        """Удаление временного файла после теста."""
+    def _remove_config(self):
+        """Удаляет временный файл после теста."""
         if os.path.exists(self.test_file):
             os.remove(self.test_file)
 
     def test_load_valid_config(self):
         """Проверка успешной загрузки корректной конфигурации."""
+        self._create_config()
         config = load_config(self.test_file)
         self.assertEqual(config["package_name"], "A")
 

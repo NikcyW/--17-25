@@ -1,82 +1,54 @@
-"""Модуль построения и визуализации графа зависимостей."""
+import os
 
-
-def build_dependency_graph(
-    root_package: str, version: str, mode: str, repo_source: str
-) -> dict:
-    """Строит граф зависимостей с помощью алгоритма DFS без рекурсии.
-
-    Returns:
-        dict: Смежный список графа { пакет: [зависимости] }
+def get_load_order(dependencies):
     """
-    from src.fetcher import fetch_nuget_dependencies, load_test_repository
-
-    graph = {}
-    stack = [root_package]
+    Возвращает порядок загрузки пакетов (топологическая сортировка).
+    """
     visited = set()
-
-    while stack:
-        node = stack.pop()
-        if node in visited:
-            continue
-        visited.add(node)
-
-        if mode == "test":
-            deps = load_test_repository(repo_source, node)
-        else:
-            deps = fetch_nuget_dependencies(node, version)
-
-        graph[node] = deps
-
-        for dep in deps:
-            if dep not in visited and dep not in stack:
-                stack.append(dep)
-
-    return graph
-
-
-def get_load_order(graph: dict, root: str) -> list:
-    """Определяет порядок загрузки (топологическая сортировка через DFS)."""
     order = []
-    visited = set()
-    visiting = set()
 
     def dfs(node):
-        if node in visiting:
-            return
         if node in visited:
             return
-        visiting.add(node)
-        for neighbor in graph.get(node, []):
-            dfs(neighbor)
-        visiting.remove(node)
         visited.add(node)
+        for neighbor in dependencies.get(node, []):
+            dfs(neighbor)
         order.append(node)
 
-    dfs(root)
-    return order
+    for pkg in dependencies:
+        dfs(pkg)
+    
+    return order[::-1]
 
 
-def generate_dot(graph: dict) -> str:
-    """Генерирует текстовое представление графа на языке Graphviz DOT."""
-    lines = ["digraph G {", "    rankdir=LR;"]
-    for node, neighbors in graph.items():
-        if not neighbors:
-            lines.append(f'    "{node}";')
-        for neighbor in neighbors:
-            lines.append(f'    "{node}" -> "{neighbor}";')
-    lines.append("}")
-    return "\n".join(lines)
+def build_dependency_graph(dependencies, output_path):
+    """
+    Строит граф зависимостей и сохраняет его в формате SVG.
+    """
+    svg_content = """<svg xmlns="http://w3.org" width="500" height="350" style="background:#f4f6f9;">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7F8C8D"/>
+    </marker>
+  </defs>
+  <text x="250" y="35" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#2C3E50">Граф зависимостей пакетов (.NET)</text>
+"""
 
+    y_pos = 100
+    for pkg, deps in dependencies.items():
+        svg_content += f"""  <circle cx="150" cy="{y_pos}" r="25" fill="#34495E"/>
+  <text x="150" y="{y_pos + 4}" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="white">{pkg}</text>
+"""
+        for dep in deps:
+            svg_content += f"""  <circle cx="380" cy="{y_pos}" r="22" fill="#2980B9"/>
+  <text x="380" y="{y_pos + 4}" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="white">{dep}</text>
+  <line x1="175" y1="{y_pos}" x2="358" y2="{y_pos}" stroke="#7F8C8D" stroke-width="2" marker-end="url(#arrow)"/>
+"""
+            y_pos += 80
 
-def save_graph_image(dot_content: str, output_path: str):
-    """Сохраняет текстовое описание графа в файл формата Graphviz DOT."""
-    # Принудительно меняем расширение на .dot, если указано другое
-    if not output_path.endswith(".dot"):
-        output_path = output_path.rsplit(".", 1)[0] + ".dot"
-        
-    try:
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(dot_content)
-    except IOError as e:
-        print(f"[Ошибка визуализации]: Не удалось сохранить файл: {e}")
+    svg_content += "</svg>"
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(svg_content)
+
