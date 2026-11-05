@@ -1,0 +1,7 @@
+{
+  "package_name": "Newtonsoft.Json",
+  "repository_url": "https://nuget.org",
+  "mode": "real",
+  "version": "13.0.1",
+  "output_image": "newtonsoft_graph.png"
+}

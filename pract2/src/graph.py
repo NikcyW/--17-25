@@ -50,6 +50,71 @@ def build_dependency_graph(
     return graph
 
 
+def _process_pre_phase(node: str, visited: set, state: dict) -> bool:
+    """Обрабатывает фазу 'pre' для узла.
+
+    Args:
+        node: Обрабатываемый узел.
+        visited: Множество посещённых узлов.
+        state: Словарь состояний узлов.
+
+    Returns:
+        bool: True если узел нужно обработать, False если пропустить.
+    """
+    if node in visited:
+        return False
+    if state.get(node) == 'visiting':
+        return False
+    state[node] = 'visiting'
+    return True
+
+
+def _process_post_phase(node: str, visited: set, state: dict, order: list) -> None:
+    """Обрабатывает фазу 'post' для узла.
+
+    Args:
+        node: Обрабатываемый узел.
+        visited: Множество посещённых узлов.
+        state: Словарь состояний узлов.
+        order: Список порядка загрузки.
+    """
+    if node not in visited:
+        visited.add(node)
+        state[node] = 'visited'
+        order.append(node)
+
+
+def _dfs_iterative(start_node: str, graph: dict, visited: set, state: dict,
+                   order: list) -> None:
+    """Выполняет итеративный DFS для одного стартового узла.
+
+    Args:
+        start_node: Стартовый узел.
+        graph: Граф зависимостей.
+        visited: Множество посещённых узлов.
+        state: Словарь состояний узлов.
+        order: Список порядка загрузки.
+    """
+    stack = [(start_node, iter(graph.get(start_node, [])), 'pre')]
+
+    while stack:
+        node, neighbors, phase = stack.pop()
+
+        if phase == 'pre':
+            if not _process_pre_phase(node, visited, state):
+                continue
+
+            stack.append((node, neighbors, 'post'))
+
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    stack.append(
+                        (neighbor, iter(graph.get(neighbor, [])), 'pre')
+                    )
+        elif phase == 'post':
+            _process_post_phase(node, visited, state, order)
+
+
 def get_load_order(graph: dict, root_package: str) -> list:
     """Возвращает порядок загрузки пакетов (топологическая сортировка).
 
@@ -64,46 +129,11 @@ def get_load_order(graph: dict, root_package: str) -> list:
     """
     visited = set()
     order = []
-
-    # Состояния: 'visiting' - в процессе обработки, 'visited' - завершён
     state = {}
 
     for start_node in graph:
-        if start_node in visited:
-            continue
-
-        # Стек содержит кортежи (узел, итератор_соседей, фаза)
-        # Фаза: 'pre' - до обхода детей, 'post' - после обхода детей
-        stack = [(start_node, iter(graph.get(start_node, [])), 'pre')]
-
-        while stack:
-            node, neighbors, phase = stack.pop()
-
-            if phase == 'pre':
-                if node in visited:
-                    continue
-
-                # Проверка цикла
-                if state.get(node) == 'visiting':
-                    continue
-
-                state[node] = 'visiting'
-
-                # Добавляем post-обработку этого узла
-                stack.append((node, neighbors, 'post'))
-
-                # Добавляем соседей для обработки
-                for neighbor in neighbors:
-                    if neighbor not in visited:
-                        stack.append(
-                            (neighbor, iter(graph.get(neighbor, [])), 'pre')
-                        )
-
-            elif phase == 'post':
-                if node not in visited:
-                    visited.add(node)
-                    state[node] = 'visited'
-                    order.append(node)
+        if start_node not in visited:
+            _dfs_iterative(start_node, graph, visited, state, order)
 
     return order
 

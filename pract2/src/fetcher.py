@@ -43,6 +43,69 @@ def fetch_latest_version(package_name: str) -> str:
     return ""
 
 
+def _extract_dependencies_from_groups(dependency_groups: list) -> set:
+    """Извлекает зависимости из групп зависимостей.
+
+    Args:
+        dependency_groups: Список групп зависимостей.
+
+    Returns:
+        set: Множество имён зависимых пакетов.
+    """
+    dependencies = set()
+    for group in dependency_groups:
+        if "dependencies" in group:
+            for dep in group["dependencies"]:
+                if "id" in dep:
+                    dependencies.add(dep["id"])
+    return dependencies
+
+
+def _find_version_in_index(data: dict, version: str) -> set:
+    """Ищет зависимости для конкретной версии в индексе.
+
+    Args:
+        data: Данные индекса пакета.
+        version: Искомая версия.
+
+    Returns:
+        set: Множество найденных зависимостей.
+    """
+    dependencies = set()
+    if "items" not in data:
+        return dependencies
+
+    for page in data["items"]:
+        if "items" not in page:
+            continue
+        for item in page["items"]:
+            catalog = item.get("catalogEntry", {})
+            if catalog.get("version") == version:
+                groups = catalog.get("dependencyGroups", [])
+                dependencies.update(_extract_dependencies_from_groups(groups))
+    return dependencies
+
+
+def _fetch_direct_dependencies(lower_pkg: str, version: str) -> set:
+    """Запрашивает зависимости напрямую по версии пакета.
+
+    Args:
+        lower_pkg: Имя пакета в нижнем регистре.
+        version: Версия пакета.
+
+    Returns:
+        set: Множество найденных зависимостей.
+    """
+    base_url = "https://api.nuget.org/v3/registration5-gz-semver2"
+    direct_url = f"{base_url}/{lower_pkg}/{version}.json"
+    try:
+        direct_data = _fetch_json(direct_url)
+        groups = direct_data.get("dependencyGroups", [])
+        return _extract_dependencies_from_groups(groups)
+    except Exception:
+        return set()
+
+
 def fetch_nuget_dependencies(package_name: str, version: str) -> list:
     """Получает все зависимости пакета из всех групп фреймворков.
 
@@ -70,33 +133,10 @@ def fetch_nuget_dependencies(package_name: str, version: str) -> list:
     except urllib.error.URLError:
         return []
 
-    dependencies = set()
-
-    if "items" in data:
-        for page in data["items"]:
-            if "items" in page:
-                for item in page["items"]:
-                    if item.get("catalogEntry", {}).get("version") == version:
-                        catalog = item.get("catalogEntry", {})
-                        if "dependencyGroups" in catalog:
-                            for group in catalog["dependencyGroups"]:
-                                if "dependencies" in group:
-                                    for dep in group["dependencies"]:
-                                        if "id" in dep:
-                                            dependencies.add(dep["id"])
+    dependencies = _find_version_in_index(data, version)
 
     if not dependencies:
-        direct_url = f"{base_url}/{lower_pkg}/{version}.json"
-        try:
-            direct_data = _fetch_json(direct_url)
-            if "dependencyGroups" in direct_data:
-                for group in direct_data["dependencyGroups"]:
-                    if "dependencies" in group:
-                        for dep in group["dependencies"]:
-                            if "id" in dep:
-                                dependencies.add(dep["id"])
-        except Exception:
-            pass
+        dependencies = _fetch_direct_dependencies(lower_pkg, version)
 
     return list(dependencies)
 
