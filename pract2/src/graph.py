@@ -13,7 +13,7 @@ def build_dependency_graph(
     mode: str,
     repo_source: str
 ) -> dict:
-    """Строит граф зависимостей DFS без рекурсии с обнаружением циклов.
+    """Строит граф зависимостей DFS без рекурсии.
 
     Args:
         root_package: Имя корневого пакета.
@@ -59,7 +59,7 @@ def _process_pre_phase(node: str, visited: set, state: dict) -> bool:
         state: Словарь состояний узлов.
 
     Returns:
-        bool: True если узел нужно обработать, False если пропустить.
+        bool: True если узел нужно обработать, False иначе.
     """
     if node in visited:
         return False
@@ -69,7 +69,9 @@ def _process_pre_phase(node: str, visited: set, state: dict) -> bool:
     return True
 
 
-def _process_post_phase(node: str, visited: set, state: dict, order: list) -> None:
+def _process_post_phase(
+    node: str, visited: set, state: dict, order: list
+) -> None:
     """Обрабатывает фазу 'post' для узла.
 
     Args:
@@ -84,8 +86,9 @@ def _process_post_phase(node: str, visited: set, state: dict, order: list) -> No
         order.append(node)
 
 
-def _dfs_iterative(start_node: str, graph: dict, visited: set, state: dict,
-                   order: list) -> None:
+def _dfs_iterative(
+    start_node: str, graph: dict, visited: set, state: dict, order: list
+) -> None:
     """Выполняет итеративный DFS для одного стартового узла.
 
     Args:
@@ -116,7 +119,7 @@ def _dfs_iterative(start_node: str, graph: dict, visited: set, state: dict,
 
 
 def get_load_order(graph: dict, root_package: str) -> list:
-    """Возвращает порядок загрузки пакетов (топологическая сортировка).
+    """Возвращает порядок загрузки пакетов (топосортировка).
 
     Использует DFS без рекурсии с явным стеком состояний.
 
@@ -147,7 +150,11 @@ def generate_dot(graph: dict) -> str:
     Returns:
         str: Содержимое DOT-файла.
     """
-    lines = ["digraph dependencies {", "  rankdir=LR;", "  node [shape=box];"]
+    lines = [
+        "digraph dependencies {",
+        "  rankdir=LR;",
+        "  node [shape=box];"
+    ]
 
     for pkg, deps in graph.items():
         for dep in deps:
